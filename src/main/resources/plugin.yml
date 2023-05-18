@@ -1,0 +1,4 @@
+name: Itemfolio
+version: '${version}'
+main: Main
+api-version: 1.19
