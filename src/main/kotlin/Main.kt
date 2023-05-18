@@ -1,71 +1,334 @@
 import org.bukkit.ChatColor
+import org.bukkit.Material
 import org.bukkit.Sound
+import org.bukkit.command.Command
+import org.bukkit.command.CommandExecutor
+import org.bukkit.command.CommandSender
+import org.bukkit.configuration.file.YamlConfiguration
+import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
+import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.entity.EntityPickupItemEvent
 import org.bukkit.event.inventory.CraftItemEvent
+import org.bukkit.event.inventory.InventoryOpenEvent
+import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.plugin.java.JavaPlugin
+import java.io.File
 
-class Main : JavaPlugin() {
+// 도감
+private val dogam = mutableMapOf<String,String>()
+// 전체 재료 갯수
+private val totalMaterialCnt = org.bukkit.Material.values().size
+// 전체 몬스터 갯수
+private val totalMonsterCnt = org.bukkit.entity.EntityType.values().size
+// 경품권 유저 map
+private val giftUserMap = mutableMapOf<String,Int>()
+
+class Main : JavaPlugin(), Listener, CommandExecutor {
+    // 플러그인 활성화시
     override fun onEnable() {
-        logger.info("Hello, world!")
-
+        logger.info("Itemfolio is enabled!")
+        // 이벤트 등록
+        server.pluginManager.registerEvents(this, this)
+        // 커맨드 등록
+        getCommand("itemfolio")?.setExecutor(this) ?: logger.warning("itemfolio command is not registered!")
+        
+        // 도감, 경품권 유저 로드
+        load()
     }
 
+    // 플러그인 비활성화시
     override fun onDisable() {
-        logger.info("Goodbye, world!")
+        logger.info("Itemfolio is disabled!")
+        // 도감, 경품권 유저 저장
+        save()
     }
 
-    // 모든 아이템
-    private val items = mutableSetOf<ItemStack>()
+    // 유저가 나가면 저장
+    @EventHandler
+    fun onPlayerQuitEvent(event: PlayerQuitEvent) {
+        save()
+    }
 
     // 아이템 획득시 획득한 아이템인지 체크
     @EventHandler
     fun onPlayerPickupItemEvent(event: EntityPickupItemEvent) {
         // if is not player then return
-        if (!event.entityType.isAlive) return
-
-        // 획득한 아이템
-        val item = event.item.itemStack
-        // 이미 획득했다면 패스
-        if (items.contains(item)) return
-
-        // 획득한 아이템이 아니라면 추가
-        items.add(item)
-        // 해당 플레이어가 아이템을 획득했다고 알림
-        broadcastMessage(userName = event.entity.name, itemName = item.type.name)
+        if (event.entity !is Player) return
+        
+        val itemName = event.item.name
+        val userName = event.entity.name
+        addToDogam(userName,itemName)
     }
 
     // 아이템 제조시 획득한 아이템인지 체크
     @EventHandler
     fun onPlayerCraftItemEvent(event: CraftItemEvent) {
         // if is not player then return
-        if (!event.whoClicked.type.isAlive) return
+        if (event.whoClicked !is Player) return
 
-        // 획득한 아이템
-        val item = event.currentItem
-        // 이미 획득했다면 패스
-        if ((item == null) || items.contains(item)) return
-
-        // 획득한 아이템이 아니라면 추가
-        items.add(item)
-        // 해당 플레이어가 아이템을 획득했다고 알림
-        broadcastMessage(userName = event.whoClicked.name, itemName = item.type.name)
+        val itemName = event.currentItem?.run {itemMeta.displayName} ?: return
+        val userName = event.whoClicked.name
+        addToDogam(userName,itemName)
     }
 
-    // 플레이어에게 전체 메시지를 보냄
-    private fun broadcastMessage(userName: String, itemName: String) {
-        // 메시지
-        val message = "${ChatColor.RED}경축 ${ChatColor.GOLD}$userName 님이 ${ChatColor.GOLD}$itemName 을(를) 획득하셨습니다."
+    // 아이템을 들었을때 체크
+    @EventHandler
+    fun onPickupItemEvent(event: EntityPickupItemEvent) {
+        // if is not player then return
+        if(event.entity !is Player) return
 
-        this.server.onlinePlayers.forEach { player ->
-            run {
-                // 경축 알림음 발생
-                player.playSound(player.location, Sound.ITEM_GOAT_HORN_SOUND_7, 1f, 1f)
-                // 메시지 전송
+        val itemName = event.item.name
+        val userName = event.entity.name
+        addToDogam(userName,itemName)
+    }
+
+    // 몬스터 처치시 처치한 몬스터인지 체크
+    @EventHandler
+    fun onPlayerKillEvent(event: EntityDeathEvent) {
+        // killer
+        val killer = event.entity.killer ?: return
+        // patient
+        val patient = event.entity
+
+        // if is not player then return
+        if(killer !is Player) return
+
+        val itemName = patient.name
+        val userName = killer.name
+        addToDogam(userName,itemName)
+    }
+
+    // 커맨드 실행시
+    override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>?): Boolean {
+        // not instanceof Player then return
+        if (sender !is Player) return false
+
+        // 명령어 안내
+        if(label == "help" || label == "?"){
+            sender.sendPlainMessage("${ChatColor.GRAY} 명령어 안내입니다.")
+            // 진행도
+            sender.sendPlainMessage("${ChatColor.GREEN} /진행도,/진행,/진행률,/progress,/p ${ChatColor.GRAY}: 도감 진행률을 확인합니다.")
+            // 순위
+            sender.sendPlainMessage("${ChatColor.GREEN} /순위,/rank ${ChatColor.GRAY}: 도감 순위를 확인합니다.")
+            // 경품권
+            sender.sendPlainMessage("${ChatColor.GREEN} /경품권,/gift,/g ${ChatColor.GRAY}: 경품권을 확인합니다.")
+            // 경품권 사용
+            sender.sendPlainMessage("${ChatColor.GREEN} /경품권사용,/usegift,/ug ${ChatColor.GRAY}: 경품권을 사용합니다.")
+        }
+
+        // 순위 입력시
+        if(label == "순위" || label == "rank") {
+            // 플레이어의 해금 갯수를 순위별로 알려줌
+            val userDogamCntMap = mutableMapOf<String,Int>()
+            dogam.forEach { (itemName,userName) ->
+                if(userDogamCntMap.containsKey(userName)) {
+                    userDogamCntMap[userName] = userDogamCntMap[userName]!! + 1
+                } else {
+                    userDogamCntMap[userName] = 1
+                }
+            }
+
+            // 순위별로 정렬
+            val userRankList : ArrayList<Pair<String,Int>> = ArrayList()
+            userDogamCntMap.forEach { (userName,dogamCnt) ->
+                userRankList.add(Pair(userName,dogamCnt))
+            }
+            userRankList.sortByDescending { it.second }
+
+            // 메시지
+            for(i in 0 until userRankList.size) {
+                val (userName,dogamCnt) = userRankList[i]
+                val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}${i+1}위: ${ChatColor.GOLD}$userName${ChatColor.GRAY}(${ChatColor.GOLD}$dogamCnt${ChatColor.GRAY}개)"
+                sender.sendPlainMessage(message)
+            }
+            return true
+        }
+
+        // 경품권 입력시
+        if(label == "경품권" || label == "gift" || label == "g") {
+            val userName = sender.name
+            val giftCnt = giftUserMap[userName] ?: 0
+            val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}경품권 갯수: ${ChatColor.GOLD}$giftCnt${ChatColor.GRAY}개\n"+
+                    "${ChatColor.GREEN}[알 림]${ChatColor.AQUA}/경품권사용 ${ChatColor.GRAY}입력시 경품권을 사용할 수 있습니다~!"
+            sender.sendPlainMessage(message)
+            return true
+        }
+
+        // 경품권사용 입력시
+        if(label == "경품권사용" || label == "usegift" || label == "ug") {
+            val userName = sender.name
+            val giftCnt = giftUserMap[userName] ?: 0
+            if(giftCnt <= 0) {
+                val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}경품권이 없습니다 ㅠㅠ 해금을 더 진행해주세요"
+                sender.sendPlainMessage(message)
+                return true
+            }
+            giftUserMap[userName] = giftCnt - 1
+            val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}경품권을 사용하였습니다!"
+            sender.sendPlainMessage(message)
+            val giftSet=Item.getRandomItem()
+            val giftItem=giftSet.first
+            val giftItemCnt=giftSet.second
+            giveReward(rewardName = giftItem.name, rewardMaterial = giftItem, rewardCnt = giftItemCnt)
+
+            return true
+        }
+
+
+        // [진행도, progress, p, 진행, 진행률, 진행률] 입력시
+        if(label in arrayOf("진행도","progress","p","진행","진행률","진행률")) {
+            val progress = dogam.size
+            val totalCnt = totalMaterialCnt + totalMonsterCnt
+            val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}도감 진행도: ${ChatColor.GOLD}$progress${ChatColor.GRAY}/${ChatColor.GOLD}$totalCnt"
+            sender.sendPlainMessage(message)
+            return true
+        }
+
+        return true
+    }
+
+    // 도감에 추가
+    private fun addToDogam(userName: String,itemName: String) {
+        if(itemName.isEmpty()) return
+        if(dogam.contains(itemName)) return
+
+        // 성공
+        dogam[itemName] = userName
+        unlockEvent()
+        unlockBroadMessage(userName,itemName)
+    }
+
+    // 도감을 해금 갯수가 일정갯수일때 이벤트
+    private fun unlockEvent() {
+        // 도감이 10의 배수일때 전체 알림
+        if(dogam.size>=10 && dogam.size%10 == 0) {
+            // 경품권 추가
+            this.server.onlinePlayers.forEach { player ->
+                val userName = player.name
+                val giftCnt = (giftUserMap[userName]?.plus(1)) ?: 1
+                giftUserMap[userName] = giftCnt
+
+                val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}벌써 ${ChatColor.GOLD}${dogam.size}개 ${ChatColor.GRAY}의 아이템을 해금했습니다. ${ChatColor.GOLD}경품권:$giftCnt"
                 player.sendPlainMessage(message)
             }
         }
+
+        // 진행도에 따른 리워드
+        when(dogam.size) {
+            22 -> giveReward(dogam.size,"당근",Material.CARROT,5)
+            36 -> giveReward(dogam.size,"쇠 곡갱이",Material.IRON_PICKAXE,1)
+            77 -> giveReward(dogam.size,"황금사과",Material.GOLDEN_APPLE,7)
+            100 -> giveReward(dogam.size,"다이아몬드",Material.DIAMOND,10)
+            150 -> giveReward(dogam.size,"에메랄드",Material.EMERALD,100)
+            200 -> giveReward(dogam.size,"네더블럭",Material.NETHER_BRICK,10)
+        }
+
+    }
+
+    // 보상지급
+    private fun giveReward(progress: Int = 0, rewardName: String, rewardMaterial: Material, rewardCnt: Int) {
+        // 경품권 사용시
+        if(progress == 0) {
+            this.server.onlinePlayers.forEach() { player ->
+                player.sendPlainMessage("${ChatColor.GREEN}[알 림]${ChatColor.GRAY}경품권을 사용하여 ${ChatColor.GOLD}`$rewardName`${ChatColor.GRAY}를 ${ChatColor.GOLD}`$rewardCnt`개${ChatColor.GRAY} 지급합니다 ^_^")
+                player.inventory.addItem(ItemStack(rewardMaterial,rewardCnt))
+            }
+        }
+        this.server.onlinePlayers.forEach { player ->
+            player.sendPlainMessage("${ChatColor.GREEN}[알 림]${ChatColor.GRAY}도감 진행이 ${ChatColor.GOLD}$progress${ChatColor.GRAY}가 되어 ${ChatColor.GOLD}$rewardName $rewardCnt${ChatColor.GRAY}를 지급합니다 ^_^")
+            player.inventory.addItem(ItemStack(rewardMaterial,rewardCnt))
+        }
+    }
+
+    // 플레이어에게 전체 메시지를 보냄
+    private fun unlockBroadMessage(userName: String, itemName: String) {
+        // 메시지
+        val message = "${ChatColor.BLUE}[해 금]${ChatColor.GOLD}$userName 님이 ${ChatColor.DARK_PURPLE}$itemName ${ChatColor.GRAY}을(를) 해금했습니다 >_<"
+
+        this.server.onlinePlayers.forEach { player ->
+            // 경축 알림음 발생
+            player.playSound(player.location, Sound.ENTITY_EGG_THROW, 1f, 1f)
+            // 메시지 전송
+            player.sendPlainMessage(message)
+        }
+    }
+    
+    private fun loadDogam() {
+        val dogamFile = File(dataFolder, "dogam.yml")
+        if(!dogamFile.exists()) {
+            // create directory
+            dogamFile.createNewFile()
+            return
+        }
+
+        val dogamYaml = YamlConfiguration.loadConfiguration(dogamFile)
+        dogamYaml.getKeys(false).forEach { key ->
+            val value = dogamYaml.getString(key) ?: return@forEach
+            dogam[key] = value
+        }
+    }
+    
+    private fun loadGift() {
+        val giftFile = File(dataFolder, "gift.yml")
+        if(!giftFile.exists()) {
+            giftFile.createNewFile()
+            return
+        }
+
+        val giftYaml = YamlConfiguration.loadConfiguration(giftFile)
+        giftYaml.getKeys(false).forEach { key ->
+            val value = giftYaml.getInt(key)
+            giftUserMap[key] = value
+        }
+    }
+    
+    private fun load() {
+        // data folder
+        if(!dataFolder.exists()) {
+            dataFolder.mkdir()
+        }
+        loadDogam()
+        loadGift()
+    }
+    
+    private fun saveDogam() {
+        val dogamFile = File(dataFolder, "dogam.yml")
+        if(!dogamFile.exists()) {
+            dogamFile.createNewFile()
+            return
+        }
+
+        val dogamYaml = YamlConfiguration.loadConfiguration(dogamFile)
+        dogam.forEach { key, value ->
+            dogamYaml.set(key, value)
+        }
+        dogamYaml.save(dogamFile)
+    }
+    
+    private fun saveGift() {
+        val giftFile = File(dataFolder, "gift.yml")
+        if(!giftFile.exists()) {
+            giftFile.createNewFile()
+            return
+        }
+
+        val giftYaml = YamlConfiguration.loadConfiguration(giftFile)
+        giftUserMap.forEach { key, value ->
+            giftYaml.set(key, value)
+        }
+        giftYaml.save(giftFile)
+    }
+    
+    private fun save() {
+        // data folder
+        if(!dataFolder.exists()) {
+            dataFolder.mkdir()
+        }
+        saveDogam()
+        saveGift()
     }
 }
 
