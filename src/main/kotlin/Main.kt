@@ -206,7 +206,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             val giftSet=Item.getRandomItem()
             val giftItem=giftSet.first
             val giftItemCnt=giftSet.second
-            giveReward(rewardName = giftItem.name, rewardMaterial = giftItem, rewardCnt = giftItemCnt)
+            giveReward(player = sender, rewardName = giftItem.name, rewardMaterial = giftItem, rewardCnt = giftItemCnt)
 
             return true
         }
@@ -252,25 +252,26 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
 
         // 진행도에 따른 리워드
         when(dogam.size) {
-            22 -> giveReward(dogam.size,"당근",Material.CARROT,5)
-            36 -> giveReward(dogam.size,"쇠 곡갱이",Material.IRON_PICKAXE,1)
-            77 -> giveReward(dogam.size,"황금사과",Material.GOLDEN_APPLE,7)
-            100 -> giveReward(dogam.size,"다이아몬드",Material.DIAMOND,10)
-            150 -> giveReward(dogam.size,"에메랄드",Material.EMERALD,100)
-            200 -> giveReward(dogam.size,"네더블럭",Material.NETHER_BRICK,10)
+            22 -> giveReward(progress = dogam.size, rewardName = "당근", rewardMaterial = Material.CARROT, rewardCnt = 5)
+            36 -> giveReward(progress = dogam.size, rewardName = "쇠 곡갱이", rewardMaterial = Material.IRON_PICKAXE, rewardCnt = 1)
+            77 -> giveReward(progress = dogam.size, rewardName = "황금사과",rewardMaterial = Material.GOLDEN_APPLE, rewardCnt = 7)
+            100 -> giveReward(progress = dogam.size, rewardName = "다이아몬드",rewardMaterial = Material.DIAMOND,rewardCnt = 10)
+            150 -> giveReward(progress = dogam.size, rewardName = "에메랄드",rewardMaterial = Material.EMERALD,rewardCnt = 100)
+            200 -> giveReward(progress = dogam.size, rewardName = "네더블럭",rewardMaterial = Material.NETHER_BRICK, rewardCnt = 10)
         }
 
     }
 
     // 보상지급
-    private fun giveReward(progress: Int = 0, rewardName: String, rewardMaterial: Material, rewardCnt: Int) {
+    private fun giveReward(
+        player: Player? = null, progress: Int = 0, rewardName: String, rewardMaterial: Material, rewardCnt: Int) {
         // 경품권 사용시
-        if(progress == 0) {
-            this.server.onlinePlayers.forEach() { player ->
-                player.sendPlainMessage("${ChatColor.GREEN}[알 림]${ChatColor.GRAY}경품권을 사용하여 ${ChatColor.GOLD}`$rewardName`${ChatColor.GRAY}를 ${ChatColor.GOLD}`$rewardCnt`개${ChatColor.GRAY} 지급합니다 ^_^")
-                player.inventory.addItem(ItemStack(rewardMaterial,rewardCnt))
-            }
+        if(player != null) {
+            player.sendPlainMessage("${ChatColor.GREEN}[알 림]${ChatColor.GRAY}경품권을 사용하여 ${ChatColor.GOLD}$rewardName $rewardCnt${ChatColor.GRAY}를 지급합니다 ^_^")
+            player.inventory.addItem(ItemStack(rewardMaterial,rewardCnt))
+            return
         }
+        // 진행도에 따른 리워드 (전체지급)
         this.server.onlinePlayers.forEach { player ->
             player.sendPlainMessage("${ChatColor.GREEN}[알 림]${ChatColor.GRAY}도감 진행이 ${ChatColor.GOLD}$progress${ChatColor.GRAY}가 되어 ${ChatColor.GOLD}$rewardName $rewardCnt${ChatColor.GRAY}를 지급합니다 ^_^")
             player.inventory.addItem(ItemStack(rewardMaterial,rewardCnt))
