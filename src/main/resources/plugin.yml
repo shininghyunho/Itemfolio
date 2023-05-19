@@ -7,4 +7,4 @@ commands:
   itemfolio:
     description: 도감 명령어
     usage: /<command>
-    aliases: [진행도, progress, p, 진행, 진행률, 진행률, 순위,rank, 경품권,gift,g, 경품권사용, usegift,ug,도감,dogam,help,?]
+    aliases: [진행도, progress, p, 진행, 진행률, 진행률, 순위,rank, 경품권,gift,g, 경품권사용, usegift,ug,도감,dogam,d,help,?]

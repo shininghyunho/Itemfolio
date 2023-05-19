@@ -111,6 +111,8 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             sender.sendPlainMessage("${ChatColor.GRAY} 명령어 안내입니다.")
             // 진행도
             sender.sendPlainMessage("${ChatColor.GREEN} /진행도,/진행,/진행률,/progress,/p ${ChatColor.GRAY}: 도감 진행률을 확인합니다.")
+            // 도감
+            sender.sendPlainMessage("${ChatColor.GREEN} /도감 <숫자>,/dogam <숫자>,/d <숫자> ${ChatColor.GRAY}: 도감을 확인합니다.")
             // 순위
             sender.sendPlainMessage("${ChatColor.GREEN} /순위,/rank ${ChatColor.GRAY}: 도감 순위를 확인합니다.")
             // 경품권
@@ -119,7 +121,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             sender.sendPlainMessage("${ChatColor.GREEN} /경품권사용,/usegift,/ug ${ChatColor.GRAY}: 경품권을 사용합니다.")
         }
         // 도감 입력시
-        if(label == "도감" || label == "dogam") {
+        if(label == "도감" || label == "dogam" || label == "d") {
             // 도감만 입력시 안내문구
             if(args == null || args.isEmpty() || args[0].toIntOrNull() == null) {
                 sender.sendPlainMessage("${ChatColor.GRAY} /도감 <숫자> : 도감의 몇번째 페이지를 보실지 입력해주세요.")
