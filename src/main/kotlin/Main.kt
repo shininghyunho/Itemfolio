@@ -11,11 +11,11 @@ import org.bukkit.event.Listener
 import org.bukkit.event.entity.EntityDeathEvent
 import org.bukkit.event.entity.EntityPickupItemEvent
 import org.bukkit.event.inventory.CraftItemEvent
-import org.bukkit.event.inventory.InventoryOpenEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
+import kotlin.math.ceil
 
 // 도감
 private val dogam = mutableMapOf<String,String>()
@@ -117,6 +117,38 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             sender.sendPlainMessage("${ChatColor.GREEN} /경품권,/gift,/g ${ChatColor.GRAY}: 경품권을 확인합니다.")
             // 경품권 사용
             sender.sendPlainMessage("${ChatColor.GREEN} /경품권사용,/usegift,/ug ${ChatColor.GRAY}: 경품권을 사용합니다.")
+        }
+        // 도감 입력시
+        if(label == "도감" || label == "dogam") {
+            // 도감만 입력시 안내문구
+            if(args == null || args.isEmpty() || args[0].toIntOrNull() == null) {
+                sender.sendPlainMessage("${ChatColor.GRAY} /도감 <숫자> : 도감의 몇번째 페이지를 보실지 입력해주세요.")
+                return true
+            }
+
+            // 페이지 번호
+            val pageCnt = 20 // 한페이지에 보여줄 갯수
+            val page = args[0].toInt()
+            val totalPage = ceil(dogam.size.toDouble() / pageCnt).toInt()
+            // 페이지 범위 체크
+            if(page < 1 || page > totalPage) {
+                sender.sendPlainMessage("${ChatColor.GRAY} /도감 <숫자> : 도감의 범위를 벗어났습니다. 1~${totalPage}까지 입력해주세요.")
+                return true
+            }
+
+            // 도감이 map 형태로 되어있으므로 아이템 이름 순서를 정렬해줌
+            val dogamList = dogam.toList().sortedBy { it.first }
+            // 페이지에 맞는 도감을 가져옴
+            val dogamPage = dogamList.subList((page-1)*pageCnt, Math.min(page*pageCnt,dogamList.size))
+            // 한줄에 5개씩 보여줌
+            val dogamLine = 5
+            for(i in dogamPage.indices step dogamLine) {
+                val dogamLineList = dogamPage.subList(i,Math.min(i+dogamLine,dogamPage.size))
+                val dogamLineStr = dogamLineList.joinToString(", ") { it.first }
+                sender.sendPlainMessage("${ChatColor.GRAY} $dogamLineStr")
+            }
+            sender.sendPlainMessage("${ChatColor.GRAY}현재/전체 : ${ChatColor.GOLD}${page}/${totalPage}")
+            return true
         }
 
         // 순위 입력시
