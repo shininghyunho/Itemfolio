@@ -8,23 +8,19 @@ import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
-import org.bukkit.event.entity.EntityDeathEvent
-import org.bukkit.event.entity.EntityPickupItemEvent
-import org.bukkit.event.inventory.CraftItemEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.ItemStack
 import org.bukkit.plugin.java.JavaPlugin
 import java.io.File
 import kotlin.math.ceil
+import kotlin.math.min
 
-// 도감
+// 도감 map
 private val dogam = mutableMapOf<String,String>()
-// 전체 재료 갯수
-private val totalMaterialCnt = org.bukkit.Material.values().size
-// 전체 몬스터 갯수
-private val totalMonsterCnt = org.bukkit.entity.EntityType.values().size
 // 경품권 유저 map
 private val giftUserMap = mutableMapOf<String,Int>()
+// 타켓 아이템 map
+private val targetMap = mutableMapOf<String,Int>()
 
 class Main : JavaPlugin(), Listener, CommandExecutor {
     // 플러그인 활성화시
@@ -52,55 +48,6 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
         save()
     }
 
-    // 아이템 획득시 획득한 아이템인지 체크
-    @EventHandler
-    fun onPlayerPickupItemEvent(event: EntityPickupItemEvent) {
-        // if is not player then return
-        if (event.entity !is Player) return
-        
-        val itemName = event.item.name
-        val userName = event.entity.name
-        addToDogam(userName,itemName)
-    }
-
-    // 아이템 제조시 획득한 아이템인지 체크
-    @EventHandler
-    fun onPlayerCraftItemEvent(event: CraftItemEvent) {
-        // if is not player then return
-        if (event.whoClicked !is Player) return
-
-        val itemName = event.currentItem?.run {itemMeta.displayName} ?: return
-        val userName = event.whoClicked.name
-        addToDogam(userName,itemName)
-    }
-
-    // 아이템을 들었을때 체크
-    @EventHandler
-    fun onPickupItemEvent(event: EntityPickupItemEvent) {
-        // if is not player then return
-        if(event.entity !is Player) return
-
-        val itemName = event.item.name
-        val userName = event.entity.name
-        addToDogam(userName,itemName)
-    }
-
-    // 몬스터 처치시 처치한 몬스터인지 체크
-    @EventHandler
-    fun onPlayerKillEvent(event: EntityDeathEvent) {
-        // killer
-        val killer = event.entity.killer ?: return
-        // patient
-        val patient = event.entity
-
-        // if is not player then return
-        if(killer !is Player) return
-
-        val itemName = patient.name
-        val userName = killer.name
-        addToDogam(userName,itemName)
-    }
-
     // 커맨드 실행시
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>?): Boolean {
         // not instanceof Player then return
@@ -109,6 +56,10 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
         // 명령어 안내
         if(label == "help" || label == "?"){
             sender.sendPlainMessage("${ChatColor.GRAY} 명령어 안내입니다.")
+            // 해금
+            sender.sendPlainMessage("${ChatColor.GREEN} /해금 <숫자>,/unlock <숫자>,/ul <숫자> ${ChatColor.GRAY}: 아이템을 해금합니다.")
+            // 타겟
+            sender.sendPlainMessage("${ChatColor.GREEN} /타겟 <숫자>,/target <숫자>,/t <숫자> ${ChatColor.GRAY}: 타겟 아이템을 확인합니다.")
             // 진행도
             sender.sendPlainMessage("${ChatColor.GREEN} /진행도,/진행,/진행률,/progress,/p ${ChatColor.GRAY}: 도감 진행률을 확인합니다.")
             // 도감
@@ -119,6 +70,68 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             sender.sendPlainMessage("${ChatColor.GREEN} /경품권,/gift,/g ${ChatColor.GRAY}: 경품권을 확인합니다.")
             // 경품권 사용
             sender.sendPlainMessage("${ChatColor.GREEN} /경품권사용,/usegift,/ug ${ChatColor.GRAY}: 경품권을 사용합니다.")
+        }
+        // 해금 입력시 /해금 <아이템 갯수>
+        if(label in listOf("해금","unlock","ul")) {
+            // 해금만 입력시 안내문구
+            if(args == null || args.isEmpty() || args[0].toIntOrNull() == null) {
+                sender.sendPlainMessage("${ChatColor.GRAY} /해금 <아이템 갯수> : 아이템을 몇개 해금할지 입력해주세요.")
+                return true
+            }
+
+            // sender 가 들고있는 아이템
+            val itemStack = sender.inventory.itemInMainHand
+            val itemName = itemStack.type.name
+            // 아이템이 targetMap 에 없으면 return
+            if(!targetMap.containsKey(itemName)) {
+                sender.sendPlainMessage("${ChatColor.GRAY} $itemName 은(는) 해금할 수 없는 아이템입니다. ㅠㅠ")
+                return true
+            }
+            // 아이템 해금
+            val unlockCnt = args[0].toInt()
+            val isUnlock = unlockTarget(sender.name,itemName,unlockCnt)
+            if(!isUnlock) {
+                // target 에 남은 아이템 갯수 전달
+                val targetCnt = targetMap[itemName] ?: 0
+                sender.sendPlainMessage("${ChatColor.GOLD}${itemName} ${ChatColor.GRAY}은(는) ${ChatColor.GOLD}${targetCnt}개 남았습니다.")
+            }
+        }
+        // 타켓 입력시 /타켓 <숫자>
+        if(label in listOf("타켓","target","t")) {
+            // 타켓 입력시 안내문구
+            if(args == null || args.isEmpty() || args[0].toIntOrNull() == null) {
+                sender.sendPlainMessage("${ChatColor.GRAY} /타켓 <숫자> : 타켓의 몇번째 페이지를 보실지 입력해주세요.")
+                return true
+            }
+
+            // 페이지 번호
+            val pageCnt = 20 // 한페이지에 보여줄 갯수
+            val page = args[0].toInt()
+            val totalPage = ceil(targetMap.size.toDouble() / pageCnt).toInt()
+            // 페이지 범위 체크
+            if(totalPage == 0) {
+                sender.sendPlainMessage("${ChatColor.RED} 헉 타켓이 비어있어요. target.yml 파일을 확인해주세요.")
+                return true
+            }
+            if(page < 1 || page > totalPage) {
+                sender.sendPlainMessage("${ChatColor.GRAY} 1~${totalPage} 페이지 사이의 숫자를 입력해주세요.")
+                return true
+            }
+
+            // target map 형태로 되어있으므로 아이템 이름 순서를 정렬해줌
+            val targetList = targetMap.toList().sortedBy {it.first}
+            // 페이지에 맞는 타겟을 가져옴
+            val targetPage = targetList.subList((page-1)*pageCnt, min(page*pageCnt,targetList.size))
+            // 한줄에 5개씩 보여줌
+            val targetLine = 5
+            for(i in targetPage.indices step targetLine) {
+                val targetLineList = targetPage.subList(i,min(i+targetLine,targetPage.size))
+                val targetLineStr = targetLineList.joinToString("${ChatColor.GRAY}, ") { "${ChatColor.GOLD}${it.first}:${it.second}" }
+                sender.sendPlainMessage("${ChatColor.GRAY} ${i+1}~${i+targetLineList.size} : $targetLineStr")
+            }
+            // 페이지 정보
+            sender.sendPlainMessage("${ChatColor.GRAY}현재/전체 ${ChatColor.GOLD}${page}/${totalPage}")
+
         }
         // 도감 입력시
         if(label == "도감" || label == "dogam" || label == "d") {
@@ -133,6 +146,10 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             val page = args[0].toInt()
             val totalPage = ceil(dogam.size.toDouble() / pageCnt).toInt()
             // 페이지 범위 체크
+            if(totalPage == 0) {
+                sender.sendPlainMessage("${ChatColor.GRAY} 아직 아무것도 해금하지 않으셨습니다.")
+                return true
+            }
             if(page < 1 || page > totalPage) {
                 sender.sendPlainMessage("${ChatColor.GRAY} /도감 <숫자> : 도감의 범위를 벗어났습니다. 1~${totalPage}까지 입력해주세요.")
                 return true
@@ -141,7 +158,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             // 도감이 map 형태로 되어있으므로 아이템 이름 순서를 정렬해줌
             val dogamList = dogam.toList().sortedBy { it.first }
             // 페이지에 맞는 도감을 가져옴
-            val dogamPage = dogamList.subList((page-1)*pageCnt, Math.min(page*pageCnt,dogamList.size))
+            val dogamPage = dogamList.subList((page-1)*pageCnt, min(page*pageCnt,dogamList.size))
             // 한줄에 5개씩 보여줌
             val dogamLine = 5
             for(i in dogamPage.indices step dogamLine) {
@@ -215,13 +232,37 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
         // [진행도, progress, p, 진행, 진행률, 진행률] 입력시
         if(label in arrayOf("진행도","progress","p","진행","진행률","진행률")) {
             val progress = dogam.size
-            val totalCnt = totalMaterialCnt + totalMonsterCnt
+            val totalCnt = targetMap.size
             val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}도감 진행도: ${ChatColor.GOLD}$progress${ChatColor.GRAY}/${ChatColor.GOLD}$totalCnt"
             sender.sendPlainMessage(message)
             return true
         }
 
         return true
+    }
+    // 타켓에있는 아이템 해금할때
+    private fun unlockTarget(userName: String,itemName: String,itemCnt: Int) : Boolean {
+        // 아이템 이름으로 Material 을 가져올수 있는지 확인
+        val material = Material.getMaterial(itemName) ?: return false
+        val player = server.getPlayer(userName) ?: return false
+
+        // target 에 해당되는 아이템인지 확인
+        if(targetMap.containsKey(itemName)) {
+            // 아이템 갯수만큼 마이너스
+            val targetCnt = targetMap[itemName]!!
+            // 아이템 갯수만큼 player 손에서 제거
+            player.inventory.removeItem(ItemStack(material,itemCnt))
+            // 아이템 갯수를 줄임, 단 0보다 작으면 0으로
+            targetMap[itemName] = Math.max(targetCnt-itemCnt,0)
+            // 아이템 갯수가 0이면 도감에 추가하고 true 반환
+            if(targetMap[itemName] == 0) {
+                addToDogam(userName,itemName)
+                // target 에서 제거
+                targetMap.remove(itemName)
+                return true
+            }
+        }
+        return false
     }
 
     // 도감에 추가
@@ -292,31 +333,69 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
     }
     
     private fun loadDogam() {
-        val dogamFile = File(dataFolder, "dogam.yml")
-        if(!dogamFile.exists()) {
-            // create directory
-            dogamFile.createNewFile()
-            return
-        }
+        try {
+            val dogamFile = File(dataFolder, "dogam.yml")
+            if(!dogamFile.exists()) {
+                // create directory
+                dogamFile.createNewFile()
+                return
+            }
 
-        val dogamYaml = YamlConfiguration.loadConfiguration(dogamFile)
-        dogamYaml.getKeys(false).forEach { key ->
-            val value = dogamYaml.getString(key) ?: return@forEach
-            dogam[key] = value
+            val dogamYaml = YamlConfiguration.loadConfiguration(dogamFile)
+            dogamYaml.getKeys(false).forEach { key ->
+                val value = dogamYaml.getString(key) ?: return@forEach
+                dogam[key] = value
+            }
+        } catch (e: Exception) {
+            println(e.stackTrace)
+            // error 메시지 안내
+            this.server.onlinePlayers.forEach { player ->
+                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}도감을 불러오는데 실패했습니다. 관리자에게 문의해주세요.")
+            }
         }
     }
     
     private fun loadGift() {
-        val giftFile = File(dataFolder, "gift.yml")
-        if(!giftFile.exists()) {
-            giftFile.createNewFile()
-            return
-        }
+        try {
+            val giftFile = File(dataFolder, "gift.yml")
+            if(!giftFile.exists()) {
+                giftFile.createNewFile()
+                return
+            }
 
-        val giftYaml = YamlConfiguration.loadConfiguration(giftFile)
-        giftYaml.getKeys(false).forEach { key ->
-            val value = giftYaml.getInt(key)
-            giftUserMap[key] = value
+            val giftYaml = YamlConfiguration.loadConfiguration(giftFile)
+            giftYaml.getKeys(false).forEach { key ->
+                val value = giftYaml.getInt(key)
+                giftUserMap[key] = value
+            }
+        } catch (e: Exception) {
+            println(e.stackTrace)
+            // error 메시지 안내
+            this.server.onlinePlayers.forEach { player ->
+                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}경품권을 불러오는데 실패했습니다. 관리자에게 문의해주세요.")
+            }
+        }
+    }
+
+    private fun loadTarget() {
+        try {
+            val targetFile = File(dataFolder, "target.yml")
+            if(!targetFile.exists()) {
+                targetFile.createNewFile()
+                return
+            }
+
+            val targetYaml = YamlConfiguration.loadConfiguration(targetFile)
+            targetYaml.getKeys(false).forEach { key ->
+                val value = targetYaml.getInt(key)
+                targetMap[key.toMaterialName()] = value
+            }
+        } catch (e: Exception) {
+            println(e.stackTrace)
+            // error 메시지 안내
+            this.server.onlinePlayers.forEach { player ->
+                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}타겟을 불러오는데 실패했습니다. 관리자에게 문의해주세요.")
+            }
         }
     }
     
@@ -327,34 +406,75 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
         }
         loadDogam()
         loadGift()
+        loadTarget()
     }
     
     private fun saveDogam() {
-        val dogamFile = File(dataFolder, "dogam.yml")
-        if(!dogamFile.exists()) {
-            dogamFile.createNewFile()
-            return
-        }
+        try {
+            val dogamFile = File(dataFolder, "dogam.yml")
+            if(!dogamFile.exists()) {
+                dogamFile.createNewFile()
+                return
+            }
 
-        val dogamYaml = YamlConfiguration.loadConfiguration(dogamFile)
-        dogam.forEach { key, value ->
-            dogamYaml.set(key, value)
+            val dogamYaml = YamlConfiguration.loadConfiguration(dogamFile)
+            dogam.forEach { (key, value) ->
+                dogamYaml.set(key.toMaterialName(), value)
+            }
+            dogamYaml.save(dogamFile)
+        } catch (e: Exception) {
+            println(e.stackTrace)
+            // error 메시지 안내
+            this.server.onlinePlayers.forEach { player ->
+                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}도감을 저장하는데 실패했습니다. 관리자에게 문의해주세요.")
+            }
         }
-        dogamYaml.save(dogamFile)
     }
     
     private fun saveGift() {
-        val giftFile = File(dataFolder, "gift.yml")
-        if(!giftFile.exists()) {
-            giftFile.createNewFile()
-            return
-        }
+        try {
+            val giftFile = File(dataFolder, "gift.yml")
+            if(!giftFile.exists()) {
+                giftFile.createNewFile()
+                return
+            }
 
-        val giftYaml = YamlConfiguration.loadConfiguration(giftFile)
-        giftUserMap.forEach { key, value ->
-            giftYaml.set(key, value)
+            val giftYaml = YamlConfiguration.loadConfiguration(giftFile)
+            giftUserMap.forEach { key, value ->
+                giftYaml.set(key, value)
+            }
+            giftYaml.save(giftFile)
+        } catch (e: Exception) {
+            println(e.stackTrace)
+            // error 메시지 안내
+            this.server.onlinePlayers.forEach { player ->
+                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}경품권을 저장하는데 실패했습니다. 관리자에게 문의해주세요.")
+            }
         }
-        giftYaml.save(giftFile)
+    }
+
+    private fun saveTarget() {
+        try {
+            val targetFile = File(dataFolder, "target.yml")
+            if(!targetFile.exists()) {
+                targetFile.createNewFile()
+                return
+            }
+
+            // clear file
+            targetFile.writeText("")
+            val targetYaml = YamlConfiguration.loadConfiguration(targetFile)
+            targetMap.forEach { (key, value) ->
+                targetYaml.set(key, value)
+            }
+            targetYaml.save(targetFile)
+        } catch (e: Exception) {
+            println(e.stackTrace)
+            // error 메시지 안내
+            this.server.onlinePlayers.forEach { player ->
+                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}타겟을 저장하는데 실패했습니다. 관리자에게 문의해주세요.")
+            }
+        }
     }
     
     private fun save() {
@@ -364,9 +484,12 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
         }
         saveDogam()
         saveGift()
+        saveTarget()
     }
 }
 
-fun main(args: Array<String>) {
-    println("Hello World!")
+// * -> ABC_DEF
+private fun String.toMaterialName(): String {
+    return this.replace(" ","_").toUpperCase()
 }
+fun main() {}
