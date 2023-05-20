@@ -4,7 +4,7 @@
 
 # Quick Start
 1. 1.19.4 paper 서버를 다운을 받습니다. [여기](https://papermc.io/downloads/paper)에서 다운받을 수 있습니다.
-2. 다운받은 터미널을 열고 `java -jar paper-1.19.4-538.jar`를 입력하여 서버를 실행합니다. (처음 실행시 eula 설정때문에 종료됩니다.)
+2. 다운받은 곳의 터미널을 열고 `java -jar paper-1.19.4-538.jar`를 입력하여 서버를 실행합니다. (처음 실행시 eula 설정때문에 종료됩니다.)
 3. eula.txt 파일을 열어 `eula=false`를 `eula=true`로 수정합니다.
 4. [최신릴리즈](https://github.com/shininghyunho/Itemfolio/releases)에서 Itemfolio.jar, target.yml, material_kor.yml 을 다운로드합니다.
 5. 다운로드한 Itemfolio.jar 을 서버의 `plugins` 폴더에 넣습니다.
