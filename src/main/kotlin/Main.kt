@@ -15,17 +15,19 @@ import java.io.File
 import kotlin.math.ceil
 import kotlin.math.min
 
-// 도감 map
+// 도감 map <아이템 영문명,해금한 유저 이름>
 private val dogam = mutableMapOf<String,String>()
-// 경품권 유저 map
+// 경품권 유저 map <유저 이름, 경품권 수>
 private val giftUserMap = mutableMapOf<String,Int>()
-// 타켓 아이템 map
+// 타켓 아이템 map <아이템 영문명, 아이템 갯수>
 private val targetMap = mutableMapOf<String,Int>()
+// 아이템 한글 이름 map <아이템 영문명, 아이템 한글명>
+private val materialKorMap = mutableMapOf<String,String>()
 
 class Main : JavaPlugin(), Listener, CommandExecutor {
     // 플러그인 활성화시
     override fun onEnable() {
-        logger.info("Itemfolio is enabled!")
+        logger.info("[Itemfolio] 활성화 되었습니다!")
         // 이벤트 등록
         server.pluginManager.registerEvents(this, this)
         // 커맨드 등록
@@ -37,7 +39,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
 
     // 플러그인 비활성화시
     override fun onDisable() {
-        logger.info("Itemfolio is disabled!")
+        logger.info("[Itemfolio] 비활성화 되었습니다!")
         // 도감, 경품권 유저 저장
         save()
     }
@@ -57,34 +59,35 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
         if(label == "help" || label == "?"){
             sender.sendPlainMessage("${ChatColor.GRAY} 명령어 안내입니다.")
             // 해금
-            sender.sendPlainMessage("${ChatColor.GREEN} /해금 <숫자>,/unlock <숫자>,/ul <숫자> ${ChatColor.GRAY}: 아이템을 해금합니다.")
+            sender.sendPlainMessage("${ChatColor.AQUA} /해금,/unlock,/ul <숫자> ${ChatColor.GRAY}: 아이템을 해금합니다.")
             // 타겟
-            sender.sendPlainMessage("${ChatColor.GREEN} /타겟 <숫자>,/target <숫자>,/t <숫자> ${ChatColor.GRAY}: 타겟 아이템을 확인합니다.")
+            sender.sendPlainMessage("${ChatColor.AQUA} /타겟,/target,/t <숫자> ${ChatColor.GRAY}: 타겟 아이템을 확인합니다.")
             // 진행도
-            sender.sendPlainMessage("${ChatColor.GREEN} /진행도,/진행,/진행률,/progress,/p ${ChatColor.GRAY}: 도감 진행률을 확인합니다.")
+            sender.sendPlainMessage("${ChatColor.AQUA} /진행도,/진행,/진행률,/progress,/p ${ChatColor.GRAY}: 도감 진행률을 확인합니다.")
             // 도감
-            sender.sendPlainMessage("${ChatColor.GREEN} /도감 <숫자>,/dogam <숫자>,/d <숫자> ${ChatColor.GRAY}: 도감을 확인합니다.")
+            sender.sendPlainMessage("${ChatColor.AQUA} /도감,/dogam,/d <숫자> ${ChatColor.GRAY}: 도감을 확인합니다.")
             // 순위
-            sender.sendPlainMessage("${ChatColor.GREEN} /순위,/rank ${ChatColor.GRAY}: 도감 순위를 확인합니다.")
+            sender.sendPlainMessage("${ChatColor.AQUA} /순위,/rank ${ChatColor.GRAY}: 도감 순위를 확인합니다.")
             // 경품권
-            sender.sendPlainMessage("${ChatColor.GREEN} /경품권,/gift,/g ${ChatColor.GRAY}: 경품권을 확인합니다.")
+            sender.sendPlainMessage("${ChatColor.AQUA} /경품권,/gift,/g ${ChatColor.GRAY}: 경품권을 확인합니다.")
             // 경품권 사용
-            sender.sendPlainMessage("${ChatColor.GREEN} /경품권사용,/usegift,/ug ${ChatColor.GRAY}: 경품권을 사용합니다.")
+            sender.sendPlainMessage("${ChatColor.AQUA} /경품권사용,/usegift,/ug ${ChatColor.GRAY}: 경품권을 사용합니다.")
         }
         // 해금 입력시 /해금 <아이템 갯수>
         if(label in listOf("해금","unlock","ul")) {
             // 해금만 입력시 안내문구
             if(args == null || args.isEmpty() || args[0].toIntOrNull() == null) {
-                sender.sendPlainMessage("${ChatColor.GRAY} /해금 <아이템 갯수> : 아이템을 몇개 해금할지 입력해주세요.")
+                sender.sendPlainMessage("${ChatColor.AQUA} /해금,/unlock,/ul <아이템 갯수> ${ChatColor.GRAY}: 아이템을 몇개 해금할지 입력해주세요.")
                 return true
             }
 
             // sender 가 들고있는 아이템
             val itemStack = sender.inventory.itemInMainHand
             val itemName = itemStack.type.name
+            val korItemName = getKorName(itemName)
             // 아이템이 targetMap 에 없으면 return
             if(!targetMap.containsKey(itemName)) {
-                sender.sendPlainMessage("${ChatColor.GRAY} $itemName 은(는) 해금할 수 없는 아이템입니다. ㅠㅠ")
+                sender.sendPlainMessage("${ChatColor.GOLD} $korItemName ${ChatColor.GRAY}은(는) 해금할 수 없는 아이템입니다. ㅠㅠ")
                 return true
             }
             // 아이템 해금
@@ -93,14 +96,14 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             if(!isUnlock) {
                 // target 에 남은 아이템 갯수 전달
                 val targetCnt = targetMap[itemName] ?: 0
-                sender.sendPlainMessage("${ChatColor.GOLD}${itemName} ${ChatColor.GRAY}은(는) ${ChatColor.GOLD}${targetCnt}개 남았습니다.")
+                sender.sendPlainMessage("${ChatColor.GOLD}${korItemName} ${ChatColor.GRAY}은(는) ${ChatColor.GOLD}${targetCnt}개 남았습니다.")
             }
         }
         // 타켓 입력시 /타켓 <숫자>
         if(label in listOf("타켓","target","t")) {
             // 타켓 입력시 안내문구
             if(args == null || args.isEmpty() || args[0].toIntOrNull() == null) {
-                sender.sendPlainMessage("${ChatColor.GRAY} /타켓 <숫자> : 타켓의 몇번째 페이지를 보실지 입력해주세요.")
+                sender.sendPlainMessage("${ChatColor.AQUA} /타겟, /target, /t <숫자> ${ChatColor.GRAY}: 타켓의 몇번째 페이지를 보실지 입력해주세요.")
                 return true
             }
 
@@ -118,8 +121,9 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
                 return true
             }
 
-            // target map 형태로 되어있으므로 아이템 이름 순서를 정렬해줌
-            val targetList = targetMap.toList().sortedBy {it.first}
+            // target map 형태로 되어있으므로 아이템 한글명 기준으로 정렬
+            val targetList = mutableListOf<Pair<String,Int>>()
+            targetMap.forEach { (itemName, cnt) -> targetList.add(Pair(getKorName(itemName),cnt)) }
             // 페이지에 맞는 타겟을 가져옴
             val targetPage = targetList.subList((page-1)*pageCnt, min(page*pageCnt,targetList.size))
             // 한줄에 5개씩 보여줌
@@ -137,7 +141,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
         if(label == "도감" || label == "dogam" || label == "d") {
             // 도감만 입력시 안내문구
             if(args == null || args.isEmpty() || args[0].toIntOrNull() == null) {
-                sender.sendPlainMessage("${ChatColor.GRAY} /도감 <숫자> : 도감의 몇번째 페이지를 보실지 입력해주세요.")
+                sender.sendPlainMessage("${ChatColor.AQUA} /도감,/dogam,/d <숫자> ${ChatColor.GRAY}: 도감의 몇번째 페이지를 보실지 입력해주세요.")
                 return true
             }
 
@@ -151,20 +155,21 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
                 return true
             }
             if(page < 1 || page > totalPage) {
-                sender.sendPlainMessage("${ChatColor.GRAY} /도감 <숫자> : 도감의 범위를 벗어났습니다. 1~${totalPage}까지 입력해주세요.")
+                sender.sendPlainMessage("${ChatColor.AQUA} /도감 <숫자> ${ChatColor.GRAY}: 도감의 범위를 벗어났습니다. 1~${totalPage}까지 입력해주세요.")
                 return true
             }
 
-            // 도감이 map 형태로 되어있으므로 아이템 이름 순서를 정렬해줌
-            val dogamList = dogam.toList().sortedBy { it.first }
+            // 도감이 map 형태로 되어있으므로 아이템 한글명 기준으로 정렬
+            val dogamList = mutableListOf<String>()
+            dogam.forEach { (itemName, cnt) -> dogamList.add(getKorName(itemName)) }
             // 페이지에 맞는 도감을 가져옴
             val dogamPage = dogamList.subList((page-1)*pageCnt, min(page*pageCnt,dogamList.size))
             // 한줄에 5개씩 보여줌
             val dogamLine = 5
             for(i in dogamPage.indices step dogamLine) {
                 val dogamLineList = dogamPage.subList(i,Math.min(i+dogamLine,dogamPage.size))
-                val dogamLineStr = dogamLineList.joinToString(", ") { it.first }
-                sender.sendPlainMessage("${ChatColor.GRAY} $dogamLineStr")
+                val dogamLineStr = dogamLineList.joinToString(", ") { it }
+                sender.sendPlainMessage("${ChatColor.GOLD}$dogamLineStr")
             }
             sender.sendPlainMessage("${ChatColor.GRAY}현재/전체 : ${ChatColor.GOLD}${page}/${totalPage}")
             return true
@@ -192,7 +197,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             // 메시지
             for(i in 0 until userRankList.size) {
                 val (userName,dogamCnt) = userRankList[i]
-                val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}${i+1}위: ${ChatColor.GOLD}$userName${ChatColor.GRAY}(${ChatColor.GOLD}$dogamCnt${ChatColor.GRAY}개)"
+                val message = "${ChatColor.GREEN}[알 림] ${ChatColor.GRAY}${i+1}위: ${ChatColor.GOLD}$userName${ChatColor.GRAY}(${ChatColor.GOLD}$dogamCnt${ChatColor.GRAY}개)"
                 sender.sendPlainMessage(message)
             }
             return true
@@ -202,8 +207,8 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
         if(label == "경품권" || label == "gift" || label == "g") {
             val userName = sender.name
             val giftCnt = giftUserMap[userName] ?: 0
-            val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}경품권 갯수: ${ChatColor.GOLD}$giftCnt${ChatColor.GRAY}개\n"+
-                    "${ChatColor.GREEN}[알 림]${ChatColor.AQUA}/경품권사용 ${ChatColor.GRAY}입력시 경품권을 사용할 수 있습니다~!"
+            val message = "${ChatColor.GREEN}[알 림] ${ChatColor.GRAY}경품권 갯수: ${ChatColor.GOLD}$giftCnt${ChatColor.GRAY}개\n"+
+                    "${ChatColor.GREEN}[알 림] ${ChatColor.AQUA}/경품권사용,/usegift,/ug ${ChatColor.GRAY}입력시 경품권을 사용할 수 있습니다~!"
             sender.sendPlainMessage(message)
             return true
         }
@@ -213,13 +218,11 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             val userName = sender.name
             val giftCnt = giftUserMap[userName] ?: 0
             if(giftCnt <= 0) {
-                val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}경품권이 없습니다 ㅠㅠ 해금을 더 진행해주세요"
+                val message = "${ChatColor.GREEN}[알 림] ${ChatColor.GRAY}경품권이 없습니다 ㅠㅠ 해금을 더 진행해주세요"
                 sender.sendPlainMessage(message)
                 return true
             }
             giftUserMap[userName] = giftCnt - 1
-            val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}경품권을 사용하였습니다!"
-            sender.sendPlainMessage(message)
             val giftSet=Item.getRandomItem()
             val giftItem=giftSet.first
             val giftItemCnt=giftSet.second
@@ -233,7 +236,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
         if(label in arrayOf("진행도","progress","p","진행","진행률","진행률")) {
             val progress = dogam.size
             val totalCnt = targetMap.size
-            val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}도감 진행도: ${ChatColor.GOLD}$progress${ChatColor.GRAY}/${ChatColor.GOLD}$totalCnt"
+            val message = "${ChatColor.GREEN}[알 림] ${ChatColor.GRAY}도감 진행도: ${ChatColor.GOLD}$progress${ChatColor.GRAY}/${ChatColor.GOLD}$totalCnt"
             sender.sendPlainMessage(message)
             return true
         }
@@ -286,7 +289,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
                 val giftCnt = (giftUserMap[userName]?.plus(1)) ?: 1
                 giftUserMap[userName] = giftCnt
 
-                val message = "${ChatColor.GREEN}[알 림]${ChatColor.GRAY}벌써 ${ChatColor.GOLD}${dogam.size}개 ${ChatColor.GRAY}의 아이템을 해금했습니다. ${ChatColor.GOLD}경품권:$giftCnt"
+                val message = "${ChatColor.GREEN}[알 림] ${ChatColor.GRAY}벌써 ${ChatColor.GOLD}${dogam.size}개 ${ChatColor.GRAY}의 아이템을 해금했습니다. ${ChatColor.GOLD}경품권:$giftCnt"
                 player.sendPlainMessage(message)
             }
         }
@@ -306,15 +309,16 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
     // 보상지급
     private fun giveReward(
         player: Player? = null, progress: Int = 0, rewardName: String, rewardMaterial: Material, rewardCnt: Int) {
+        val korRewardName = getKorName(rewardName)
         // 경품권 사용시
         if(player != null) {
-            player.sendPlainMessage("${ChatColor.GREEN}[알 림]${ChatColor.GRAY}경품권을 사용하여 ${ChatColor.GOLD}$rewardName $rewardCnt${ChatColor.GRAY}를 지급합니다 ^_^")
+            player.sendPlainMessage("${ChatColor.GREEN}[알 림] ${ChatColor.GRAY}경품권을 사용하여 ${ChatColor.GOLD}$korRewardName $rewardCnt${ChatColor.GRAY}를 지급합니다 ^_^")
             player.inventory.addItem(ItemStack(rewardMaterial,rewardCnt))
             return
         }
         // 진행도에 따른 리워드 (전체지급)
         this.server.onlinePlayers.forEach { player ->
-            player.sendPlainMessage("${ChatColor.GREEN}[알 림]${ChatColor.GRAY}도감 진행이 ${ChatColor.GOLD}$progress${ChatColor.GRAY}가 되어 ${ChatColor.GOLD}$rewardName $rewardCnt${ChatColor.GRAY}를 지급합니다 ^_^")
+            player.sendPlainMessage("${ChatColor.GREEN}[알 림] ${ChatColor.GRAY}도감 진행이 ${ChatColor.GOLD}$progress${ChatColor.GRAY}가 되어 ${ChatColor.GOLD}$korRewardName $rewardCnt${ChatColor.GRAY}를 지급합니다 ^_^")
             player.inventory.addItem(ItemStack(rewardMaterial,rewardCnt))
         }
     }
@@ -322,7 +326,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
     // 플레이어에게 전체 메시지를 보냄
     private fun unlockBroadMessage(userName: String, itemName: String) {
         // 메시지
-        val message = "${ChatColor.BLUE}[해 금]${ChatColor.GOLD}$userName 님이 ${ChatColor.DARK_PURPLE}$itemName ${ChatColor.GRAY}을(를) 해금했습니다 >_<"
+        val message = "${ChatColor.BLUE}[해 금]${ChatColor.GOLD}$userName 님이 ${ChatColor.DARK_PURPLE}${getKorName(itemName)} ${ChatColor.GRAY}을(를) 해금했습니다 >_<"
 
         this.server.onlinePlayers.forEach { player ->
             // 경축 알림음 발생
@@ -350,7 +354,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             println(e.stackTrace)
             // error 메시지 안내
             this.server.onlinePlayers.forEach { player ->
-                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}도감을 불러오는데 실패했습니다. 관리자에게 문의해주세요.")
+                player.sendPlainMessage("${ChatColor.RED}[에 러] ${ChatColor.GRAY}도감을 불러오는데 실패했습니다. 관리자에게 문의해주세요.")
             }
         }
     }
@@ -372,7 +376,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             println(e.stackTrace)
             // error 메시지 안내
             this.server.onlinePlayers.forEach { player ->
-                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}경품권을 불러오는데 실패했습니다. 관리자에게 문의해주세요.")
+                player.sendPlainMessage("${ChatColor.RED}[에 러] ${ChatColor.GRAY}경품권을 불러오는데 실패했습니다. 관리자에게 문의해주세요.")
             }
         }
     }
@@ -394,11 +398,34 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             println(e.stackTrace)
             // error 메시지 안내
             this.server.onlinePlayers.forEach { player ->
-                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}타겟을 불러오는데 실패했습니다. 관리자에게 문의해주세요.")
+                player.sendPlainMessage("${ChatColor.RED}[에 러] ${ChatColor.GRAY}타겟을 불러오는데 실패했습니다. 관리자에게 문의해주세요.")
             }
         }
     }
-    
+
+    // material 한글 파일 로드
+    private fun loadMaterialKor() {
+        try {
+            val materialKorFile = File(dataFolder, "material_kor.yml")
+            if(!materialKorFile.exists()) {
+                materialKorFile.createNewFile()
+                return
+            }
+
+            val materialKorYaml = YamlConfiguration.loadConfiguration(materialKorFile)
+            materialKorYaml.getKeys(false).forEach { key ->
+                val value = materialKorYaml.getString(key) ?: return@forEach
+                materialKorMap[key] = value
+            }
+        } catch (e: Exception) {
+            println(e.stackTrace)
+            // error 메시지 안내
+            this.server.onlinePlayers.forEach { player ->
+                player.sendPlainMessage("${ChatColor.YELLOW}[주 의] ${ChatColor.GRAY}한글 번역 파일을 불러오는데 실패했습니다. 아이템이 영어로 표시됩니다.")
+            }
+        }
+    }
+
     private fun load() {
         // data folder
         if(!dataFolder.exists()) {
@@ -407,6 +434,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
         loadDogam()
         loadGift()
         loadTarget()
+        loadMaterialKor()
     }
     
     private fun saveDogam() {
@@ -426,7 +454,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             println(e.stackTrace)
             // error 메시지 안내
             this.server.onlinePlayers.forEach { player ->
-                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}도감을 저장하는데 실패했습니다. 관리자에게 문의해주세요.")
+                player.sendPlainMessage("${ChatColor.RED}[에 러] ${ChatColor.GRAY}도감을 저장하는데 실패했습니다. 관리자에게 문의해주세요.")
             }
         }
     }
@@ -448,7 +476,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             println(e.stackTrace)
             // error 메시지 안내
             this.server.onlinePlayers.forEach { player ->
-                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}경품권을 저장하는데 실패했습니다. 관리자에게 문의해주세요.")
+                player.sendPlainMessage("${ChatColor.RED}[에 러] ${ChatColor.GRAY}경품권을 저장하는데 실패했습니다. 관리자에게 문의해주세요.")
             }
         }
     }
@@ -472,7 +500,7 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
             println(e.stackTrace)
             // error 메시지 안내
             this.server.onlinePlayers.forEach { player ->
-                player.sendPlainMessage("${ChatColor.RED}[에 러]${ChatColor.GRAY}타겟을 저장하는데 실패했습니다. 관리자에게 문의해주세요.")
+                player.sendPlainMessage("${ChatColor.RED}[에 러] ${ChatColor.GRAY}타겟을 저장하는데 실패했습니다. 관리자에게 문의해주세요.")
             }
         }
     }
@@ -491,5 +519,10 @@ class Main : JavaPlugin(), Listener, CommandExecutor {
 // * -> ABC_DEF
 private fun String.toMaterialName(): String {
     return this.replace(" ","_").toUpperCase()
+}
+
+// 아이템 이름을 한글로 변경
+private fun getKorName(itemName: String): String {
+    return materialKorMap[itemName] ?: itemName
 }
 fun main() {}

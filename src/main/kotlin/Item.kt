@@ -1,7 +1,7 @@
 import org.bukkit.Material
 
 private val EATABLE_GIFT_RATE=0.9 // 경품권 사용시 먹을거 나올확률
-private val RARE_EATABLE_RATE=0.1 // 레어 먹을거 나올확률
+private val RARE_EATABLE_RATE=0.3 // 레어 먹을거 나올확률
 
 // 먹을거
 private val commonEatable = listOf(
@@ -51,13 +51,12 @@ private val commonMetalMap = mapOf(
 
 // 확률 맵
 private val probabilityMap = mapOf<Double,Int>(
-    1.0 to 1,
-    0.7 to 2,
-    0.4 to 3,
-    0.1 to 8,
-    0.05 to 10,
-    0.03 to 20,
-    0.01 to 32,
+    1.0 to 5,
+    0.7 to 10,
+    0.4 to 15,
+    0.1 to 20,
+    0.05 to 32,
+    0.03 to 64,
     0.005 to 128,
     0.001 to 256,
 )
