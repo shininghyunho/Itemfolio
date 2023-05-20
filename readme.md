@@ -41,7 +41,7 @@ HAY_BLOCK: 10
 BLACK_GLAZED_TERRACOTTA: 10
 ```
 - 타겟 이름은 [여기](https://hub.spigotmc.org/javadocs/spigot/org/bukkit/Material.html)에서 확인할 수 있습니다.
-- 샘플 타겟 파일은 `./sampleTarget/target.yml`에 있습니다.
+- 샘플 타겟 파일은 `./sample/target.yml`에 있습니다.
 
 ## 한글 번역 파일 설정 <span style="color:orange">(선택)</span>
 - 1.1 버전 이후로 추가된 내용입니다.
@@ -58,5 +58,5 @@ SPIDER_EYE: 거미_눈
 HAY_BLOCK: 건초더미
 BLACK_GLAZED_TERRACOTTA: 검은색_유광_테라코타
 ```
-- 샘플 한글 번역 파일은 `./sampleTarget/material_kor.yml`에 있습니다.
+- 샘플 한글 번역 파일은 `./sample/material_kor.yml`에 있습니다.
 - 한글 번역 파일을 설정하지 않으면 영문 아이템 이름이 출력됩니다.
